@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Consumo Energético - Bogotá</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: #f5f7fa; color: #333; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        header { text-align: center; margin-bottom: 30px; padding: 20px; background: linear-gradient(135deg, #1a6fb0 0%, #166db3 100%); border-radius: 10px; color: white; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); }
+        h1 { font-size: 2.2rem; margin-bottom: 10px; }
+        .subtitle { font-size: 1.1rem; opacity: 0.9; }
+        .dashboard { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; }
+        @media (max-width: 900px) { .dashboard { grid-template-columns: 1fr; } }
+        .card { background: white; border-radius: 10px; padding: 20px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #eee; }
+        .card-title { font-size: 1.4rem; color: #166db3; font-weight: 600; }
+        .chart-container { position: relative; height: 350px; width: 100%; }
+        .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 25px; }
+        .stat-card { background: white; border-radius: 8px; padding: 15px; text-align: center; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06); transition: all 0.3s ease; }
+        .stat-title { font-size: 0.9rem; color: #666; margin-bottom: 8px; }
+        .stat-value { font-size: 1.6rem; font-weight: 700; color: #166db3; }
+        .stat-change { font-size: 0.85rem; margin-top: 5px; }
+        .positive { color: #28a745; }
+        .negative { color: #dc3545; }
+        .filters { display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; }
+        .filter-btn { padding: 8px 16px; background: #e9ecef; border: none; border-radius: 20px; cursor: pointer; font-weight: 500; transition: all 0.2s; }
+        .filter-btn.active { background: #166db3; color: white; }
+        .filter-btn:hover { background: #ced4da; }
+        .filter-btn.active:hover { background: #125a96; }
+        footer { text-align: center; margin-top: 40px; padding: 20px; color: #6c757d; font-size: 0.9rem; }
+        .icon { font-size: 1.8rem; color: #166db3; margin-bottom: 10px; }
+        .time-filters { display: flex; gap: 15px; margin-top: 10px; }
+        .loading { opacity: 0.7; pointer-events: none; }
+        .period-filters { margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Dashboard de Consumo Energético</h1>
+            <p class="subtitle">Análisis por localidades y tendencias temporales en Bogotá</p>
+        </header>
+        
+        <div class="dashboard">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Consumo por Localidades</h2>
+                </div>
+                <div class="chart-container"><canvas id="barChart"></canvas></div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Tendencia de Consumo</h2>
+                </div>
+                <div class="period-filters">
+                    <p><strong>Filtrar por período:</strong></p>
+                    <div class="time-filters">
+                        <button class="filter-btn active" data-period="12">Últimos 12 meses</button>
+                        <button class="filter-btn" data-period="6">Últimos 6 meses</button>
+                        <button class="filter-btn" data-period="3">Últimos 3 meses</button>
+                    </div>
+                </div>
+                <div class="chart-container"><canvas id="lineChart"></canvas></div>
+            </div>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-card" data-type="residential">
+                <div class="icon"><i class="fas fa-home"></i></div>
+                <div class="stat-title">Consumo Residencial Promedio</div>
+                <div class="stat-value">45.2M kWh</div>
+                <div class="stat-change positive"><i class="fas fa-arrow-up"></i> 8.2% vs año anterior</div>
+            </div>
+            <div class="stat-card" data-type="commercial">
+                <div class="icon"><i class="fas fa-store"></i></div>
+                <div class="stat-title">Consumo Comercial Promedio</div>
+                <div class="stat-value">33.8M kWh</div>
+                <div class="stat-change positive"><i class="fas fa-arrow-up"></i> 5.7% vs año anterior</div>
+            </div>
+            <div class="stat-card" data-type="industrial">
+                <div class="icon"><i class="fas fa-industry"></i></div>
+                <div class="stat-title">Consumo Industrial Promedio</div>
+                <div class="stat-value">61.5M kWh</div>
+                <div class="stat-change positive"><i class="fas fa-arrow-up"></i> 6.9% vs año anterior</div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>Fuente: Datos ficticios simulados para análisis de consumo energético</p>
+            <p>© 2023 - Empresa de Energía de Bogotá</p>
+        </footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Colores para los diferentes tipos de consumo
+            const colors = { 
+                residential: '#ff6b6b', 
+                commercial: '#4ecdc4', 
+                industrial: '#45b7d1' 
+            };
+
+            // Datos de consumo por localidades
+            const localidades = ['Usaquén','Chapinero','Santa Fe','San Cristóbal','Usme','Tunjuelito','Bosa','Kennedy','Fontibón','Engativá','Suba','Barrios Unidos','Teusaquillo','Los Mártires','Antonio Nariño','Puente Aranda','La Candelaria','Rafael Uribe','Ciudad Bolívar'];
+            
+            const residentialData = [65000,42000,38000,51000,47000,39000,58000,72000,45000,62000,78000,43000,41000,36000,44000,53000,35000,49000,46000];
+            const commercialData = [52000,34000,31000,42000,38000,32000,47000,58000,37000,50000,63000,35000,33000,29000,36000,43000,28000,40000,38000];
+            const industrialData = [72000,58000,52000,67000,61000,53000,75000,89000,59000,78000,95000,56000,54000,48000,57000,68000,46000,63000,60000];
+
+            // Datos de tendencias temporales (12 meses)
+            const meses12 = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+            const residentialTrend12 = [42000,44500,43000,41000,43500,46000,48000,46500,45000,47000,48500,49500];
+            const commercialTrend12 = [32000,33500,32500,31000,33000,34000,35500,34500,35000,36000,36500,37000];
+            const industrialTrend12 = [58000,60000,59000,57000,61000,63000,62000,61500,62500,63500,64000,65000];
+
+            // Datos de tendencias temporales (6 meses)
+            const meses6 = ['Jul','Ago','Sep','Oct','Nov','Dic'];
+            const residentialTrend6 = [48000,46500,45000,47000,48500,49500];
+            const commercialTrend6 = [35500,34500,35000,36000,36500,37000];
+            const industrialTrend6 = [62000,61500,62500,63500,64000,65000];
+
+            // Datos de tendencias temporales (3 meses)
+            const meses3 = ['Oct','Nov','Dic'];
+            const residentialTrend3 = [47000,48500,49500];
+            const commercialTrend3 = [36000,36500,37000];
+            const industrialTrend3 = [63500,64000,65000];
+
+            // Inicializar gráficos
+            let barChart = new Chart(document.getElementById('barChart'), {
+                type: 'bar',
+                data: {
+                    labels: localidades,
+                    datasets: [
+                        { label: 'Residencial', data: residentialData, backgroundColor: colors.residential },
+                        { label: 'Comercial', data: commercialData, backgroundColor: colors.commercial },
+                        { label: 'Industrial', data: industrialData, backgroundColor: colors.industrial }
+                    ]
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    plugins: { 
+                        legend: { display: true },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + context.parsed.y.toLocaleString() + ' kWh';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Consumo (kWh)'
+                            }
+                        }
+                    }
+                }
+            });
+
+            let lineChart = new Chart(document.getElementById('lineChart'), {
+                type: 'line',
+                data: {
+                    labels: meses12,
+                    datasets: [
+                        { label: 'Residencial', data: residentialTrend12, borderColor: colors.residential, fill: false, tension: 0.4 },
+                        { label: 'Comercial', data: commercialTrend12, borderColor: colors.commercial, fill: false, tension: 0.4 },
+                        { label: 'Industrial', data: industrialTrend12, borderColor: colors.industrial, fill: false, tension: 0.4 }
+                    ]
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    plugins: { 
+                        legend: { display: true },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + context.parsed.y.toLocaleString() + ' kWh';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Consumo (kWh)'
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Funcionalidad para los botones de filtro por período
+            const periodFilterButtons = document.querySelectorAll('.filter-btn[data-period]');
+            periodFilterButtons.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    // Actualizar estado activo de los botones
+                    periodFilterButtons.forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    const period = this.dataset.period;
+                    let meses, residentialTrend, commercialTrend, industrialTrend;
+                    
+                    // Seleccionar datos según el período
+                    switch(period) {
+                        case '12':
+                            meses = meses12;
+                            residentialTrend = residentialTrend12;
+                            commercialTrend = commercialTrend12;
+                            industrialTrend = industrialTrend12;
+                            break;
+                        case '6':
+                            meses = meses6;
+                            residentialTrend = residentialTrend6;
+                            commercialTrend = commercialTrend6;
+                            industrialTrend = industrialTrend6;
+                            break;
+                        case '3':
+                            meses = meses3;
+                            residentialTrend = residentialTrend3;
+                            commercialTrend = commercialTrend3;
+                            industrialTrend = industrialTrend3;
+                            break;
+                    }
+                    
+                    // Actualizar gráfico de líneas con nuevos datos
+                    lineChart.data.labels = meses;
+                    lineChart.data.datasets[0].data = residentialTrend;
+                    lineChart.data.datasets[1].data = commercialTrend;
+                    lineChart.data.datasets[2].data = industrialTrend;
+                    lineChart.update();
+                });
+            });
+        });
+    </script>
+</body>
+</html>
